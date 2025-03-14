@@ -1,7 +1,7 @@
 // Initialisation de la carte
 let map = L.map('map').setView([48.8566, 2.3522], 13);
 
-// Définition des couches de carte IGN
+// Définition des couches de carte IGN (sans clé API)
 let satellite = L.tileLayer(
     "https://wxs.ign.fr/pratique/geoportail/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile" +
     "&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" +
@@ -16,27 +16,17 @@ let cadastre = L.tileLayer(
     { attribution: "IGN - Cadastre", maxZoom: 19, opacity: 0.7 }
 );
 
-// Ajout du fond satellite par défaut
-satellite.addTo(map);
+// Ajout d'un fond de carte par défaut
+let baseMaps = {
+    "Satellite IGN": satellite,
+    "Cadastre IGN": cadastre
+};
 
-// Fonction pour basculer entre les couches IGN
-let activeLayer = satellite;
-function toggleSatellite() {
-    if (map.hasLayer(cadastre)) {
-        map.removeLayer(cadastre);
-    }
-    if (!map.hasLayer(satellite)) {
-        map.addLayer(satellite);
-    }
-}
-function toggleCadastre() {
-    if (map.hasLayer(satellite)) {
-        map.removeLayer(satellite);
-    }
-    if (!map.hasLayer(cadastre)) {
-        map.addLayer(cadastre);
-    }
-}
+// Ajout du contrôle Leaflet pour basculer entre les fonds
+L.control.layers(baseMaps).addTo(map);
+
+// Activation du fond satellite par défaut
+satellite.addTo(map);
 
 // Gestion des tracés
 let pointsEau = [];
@@ -46,7 +36,7 @@ let currentPolygon = [];
 
 // Ajout d'un point d'eau
 function addPointEau() {
-    map.on('click', function (e) {
+    map.once('click', function (e) {
         let marker = L.marker([e.latlng.lat, e.latlng.lng], { draggable: true }).addTo(map);
         pointsEau.push({ lat: e.latlng.lat, lng: e.latlng.lng });
 
@@ -55,8 +45,6 @@ function addPointEau() {
             let index = pointsEau.findIndex(p => p.lat === e.latlng.lat && p.lng === e.latlng.lng);
             pointsEau[index] = { lat: newPos.lat, lng: newPos.lng };
         });
-
-        map.off('click');
     });
 }
 
@@ -107,4 +95,14 @@ function sendData() {
         pression: 3.5,
         zoom: map.getZoom(),
         fill_time: 10
-   
+    };
+
+    fetch("http://127.0.0.1:5000/generate_plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => console.log("Plan généré :", result))
+    .catch(error => console.error("Erreur :", error));
+}
