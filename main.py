@@ -10,6 +10,9 @@ from pyproj import Transformer
 
 app = FastAPI()
 
+# Transformer GPS -> mètres
+transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+
 # Modèle pour un point (latitude, longitude)
 class Point(BaseModel):
     lat: float
@@ -22,22 +25,28 @@ class Zone(BaseModel):
 
 # Modèle des données envoyées par Bubble
 class IrrigationData(BaseModel):
-    address: str  # Adresse fournie par Bubble
-    zones: List[Zone]  # Zones dessinées par l'utilisateur
-    points_eau: List[Point]  # Liste de points d'eau principaux
-    pression: float  # Pression du point d'eau (en bars)
-    zoom: int  # Niveau de zoom (pour gérer l'échelle)
-    fill_time: float  # Temps de remplissage d'un arroseur de 10L (en secondes)
+    address: str
+    zones: List[Zone]
+    points_eau: List[Point]
+    pression: float
+    zoom: int
+    fill_time: float
+
+# Fonction pour convertir les coordonnées GPS en mètres
+def convert_gps_to_meters(lat, lng):
+    return transformer.transform(lng, lat)
+
+# Fonction pour calculer une distance en mètres entre deux points
+def distance_meters(lat1, lng1, lat2, lng2):
+    p1 = convert_gps_to_meters(lat1, lng1)
+    p2 = convert_gps_to_meters(lat2, lng2)
+    return ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2) ** 0.5
 
 @app.post("/generate_plan")
 async def generate_plan(data: IrrigationData):
-    """
-    Endpoint qui reçoit les données d'irrigation et génère un plan optimisé.
-    """
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-
     zone_areas = []
     zone_centroids = []
+    
     for zone in data.zones:
         coords = [(pt.lng, pt.lat) for pt in zone.coords]
         if len(coords) < 3:
@@ -45,9 +54,9 @@ async def generate_plan(data: IrrigationData):
             continue
         poly = Polygon(coords)
         poly_proj = shapely.ops.transform(transformer.transform, poly)
-        area = poly_proj.area  # surface en m²
+        area = poly_proj.area  # Surface en m²
         zone_areas.append(area)
-        zone_centroids.append(poly.centroid)
+        zone_centroids.append(poly_proj.centroid)
 
     # Création du graphe pour optimiser le tracé des tuyaux
     G = nx.Graph()
@@ -56,7 +65,7 @@ async def generate_plan(data: IrrigationData):
     for i, centroid in enumerate(zone_centroids):
         G.add_node(f"zone_{i}", pos=(centroid.x, centroid.y))
         for j, point in enumerate(data.points_eau):
-            G.add_edge(f"point_eau_{j}", f"zone_{i}", weight=centroid.distance(ShapelyPoint(point.lng, point.lat)))
+            G.add_edge(f"point_eau_{j}", f"zone_{i}", weight=distance_meters(point.lat, point.lng, centroid.y, centroid.x))
     mst = nx.minimum_spanning_tree(G)
 
     tuyaux = [{"start": G.nodes[u]['pos'], "end": G.nodes[v]['pos'], "pipe_type": "32mm"} for u, v in mst.edges]
