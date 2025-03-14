@@ -1,32 +1,45 @@
-// Initialisation de la carte
+// Initialisation de la carte Leaflet
 let map = L.map('map').setView([48.8566, 2.3522], 13);
 
 // Définition des couches de carte IGN (sans clé API)
-let satellite = L.tileLayer(
-    "https://wxs.ign.fr/pratique/geoportail/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile" +
-    "&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" +
-    "&FORMAT=image/jpeg",
-    { attribution: "IGN - Geoportail", maxZoom: 19 }
+let satelliteIGN = L.tileLayer(
+    "https://wxs.ign.fr/pratique/geoportail/wmts?" +
+    "SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=ORTHOIMAGERY.ORTHOPHOTOS" +
+    "&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg",
+    {
+        attribution: "IGN - Geoportail",
+        tileSize: 256,
+        zoomOffset: 0,
+        minZoom: 2,
+        maxZoom: 19
+    }
 );
 
-let cadastre = L.tileLayer(
-    "https://wxs.ign.fr/pratique/geoportail/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile" +
-    "&LAYER=CADASTRAL.PARCELS&STYLE=PCI&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" +
-    "&FORMAT=image/png",
-    { attribution: "IGN - Cadastre", maxZoom: 19, opacity: 0.7 }
+let cadastreIGN = L.tileLayer(
+    "https://wxs.ign.fr/pratique/geoportail/wmts?" +
+    "SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=CADASTRAL.PARCELS" +
+    "&STYLE=PCI&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/png",
+    {
+        attribution: "IGN - Cadastre",
+        tileSize: 256,
+        zoomOffset: 0,
+        minZoom: 2,
+        maxZoom: 19,
+        opacity: 0.7
+    }
 );
 
-// Ajout d'un fond de carte par défaut
+// Ajout du fond de carte satellite par défaut
+satelliteIGN.addTo(map);
+
+// Gestion des couches
 let baseMaps = {
-    "Satellite IGN": satellite,
-    "Cadastre IGN": cadastre
+    "Satellite IGN": satelliteIGN,
+    "Cadastre IGN": cadastreIGN
 };
 
-// Ajout du contrôle Leaflet pour basculer entre les fonds
+// Ajout du contrôle Leaflet pour changer de fond de carte
 L.control.layers(baseMaps).addTo(map);
-
-// Activation du fond satellite par défaut
-satellite.addTo(map);
 
 // Gestion des tracés
 let pointsEau = [];
