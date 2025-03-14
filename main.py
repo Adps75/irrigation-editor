@@ -1,11 +1,9 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Tuple, Dict
+from typing import List
 import uvicorn
 import networkx as nx
-
-# Pour calculer les surfaces et optimiser le tracé
 from shapely.geometry import Polygon, Point as ShapelyPoint
 import shapely.ops
 from pyproj import Transformer
@@ -19,28 +17,22 @@ class Point(BaseModel):
 
 # Modèle pour une zone, qui est une liste de points
 class Zone(BaseModel):
+    id: int
     coords: List[Point]
 
 # Modèle des données envoyées par Bubble
 class IrrigationData(BaseModel):
-    address: str      # Adresse fournie par Bubble
-    zones: List[Zone] # Zones dessinées par l'utilisateur
-    point_eau: Point  # Point d'eau principal
-    pression: float   # Pression du point d'eau (en bars)
-    zoom: int         # Niveau de zoom (pour gérer l'échelle)
-
-@app.get("/", response_class=HTMLResponse)
-async def get_editor():
-    # Sert le fichier HTML de l'éditeur
-    with open("static/editor.html", "r", encoding="utf-8") as f:
-        content = f.read()
-    return HTMLResponse(content=content)
+    address: str  # Adresse fournie par Bubble
+    zones: List[Zone]  # Zones dessinées par l'utilisateur
+    points_eau: List[Point]  # Liste de points d'eau principaux
+    pression: float  # Pression du point d'eau (en bars)
+    zoom: int  # Niveau de zoom (pour gérer l'échelle)
+    fill_time: float  # Temps de remplissage d'un arroseur de 10L (en secondes)
 
 @app.post("/generate_plan")
 async def generate_plan(data: IrrigationData):
     """
-    Endpoint qui reçoit les données d'irrigation (adresse, zones, point d'eau, pression, zoom).
-    Il calcule la surface des zones et optimise le réseau de tuyaux.
+    Endpoint qui reçoit les données d'irrigation et génère un plan optimisé.
     """
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
 
@@ -59,34 +51,27 @@ async def generate_plan(data: IrrigationData):
 
     # Création du graphe pour optimiser le tracé des tuyaux
     G = nx.Graph()
-    G.add_node("point_eau", pos=(data.point_eau.lng, data.point_eau.lat))
+    for i, point in enumerate(data.points_eau):
+        G.add_node(f"point_eau_{i}", pos=(point.lng, point.lat))
     for i, centroid in enumerate(zone_centroids):
         G.add_node(f"zone_{i}", pos=(centroid.x, centroid.y))
-        G.add_edge("point_eau", f"zone_{i}", weight=centroid.distance(ShapelyPoint(data.point_eau.lng, data.point_eau.lat)))
+        for j, point in enumerate(data.points_eau):
+            G.add_edge(f"point_eau_{j}", f"zone_{i}", weight=centroid.distance(ShapelyPoint(point.lng, point.lat)))
     mst = nx.minimum_spanning_tree(G)
-    
-    tuyaux = [
-        {"start": G.nodes[u]['pos'], "end": G.nodes[v]['pos'], "pipe_type": "32mm"}
-        for u, v in mst.edges
-    ]
+
+    tuyaux = [{"start": G.nodes[u]['pos'], "end": G.nodes[v]['pos'], "pipe_type": "32mm"} for u, v in mst.edges]
 
     # Génération des équipements
-    electrovanes = [
-        {"location": G.nodes[f"zone_{i}"]['pos'], "type": "24V"} for i in range(len(zone_centroids))
-    ]
-    arroseurs = [
-        {"location": G.nodes[f"zone_{i}"]['pos'], "radius": 5} for i in range(len(zone_centroids))
-    ]
+    electrovanes = [{"location": G.nodes[f"zone_{i}"]['pos'], "type": "24V"} for i in range(len(zone_centroids))]
+    arroseurs = [{"location": G.nodes[f"zone_{i}"]['pos'], "radius": 5} for i in range(len(zone_centroids))]
 
     result = {
         "zone_areas": zone_areas,
         "tuyaux": tuyaux,
         "electrovanes": electrovanes,
         "arroseurs": arroseurs,
-        "scale_info": {
-            "zoom": data.zoom,
-            "remarque": "Le zoom est utilisé pour adapter l'affichage et le calcul des surfaces."
-        }
+        "scale_info": {"zoom": data.zoom},
+        "hydraulic_info": {"pression": data.pression, "fill_time": data.fill_time}
     }
     return JSONResponse(content=result)
 
