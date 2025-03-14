@@ -1,7 +1,13 @@
-// Initialisation de la carte Leaflet
+// Initialisation de la carte Leaflet avec OpenStreetMap par défaut
 let map = L.map('map').setView([48.8566, 2.3522], 13);
 
-// Définition des couches de carte IGN (sans clé API)
+// Fond de carte OpenStreetMap (par défaut)
+let osmBase = L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { attribution: "© OpenStreetMap contributors" }
+).addTo(map);
+
+// Fond de carte Satellite IGN
 let satelliteIGN = L.tileLayer(
     "https://wxs.ign.fr/pratique/geoportail/wmts?" +
     "SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=ORTHOIMAGERY.ORTHOPHOTOS" +
@@ -15,6 +21,7 @@ let satelliteIGN = L.tileLayer(
     }
 );
 
+// Fond de carte Cadastre IGN
 let cadastreIGN = L.tileLayer(
     "https://wxs.ign.fr/pratique/geoportail/wmts?" +
     "SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=CADASTRAL.PARCELS" +
@@ -29,16 +36,12 @@ let cadastreIGN = L.tileLayer(
     }
 );
 
-// Ajout du fond de carte satellite par défaut
-satelliteIGN.addTo(map);
-
-// Gestion des couches
+// Ajout du contrôle pour basculer entre les cartes
 let baseMaps = {
+    "Plan classique (OSM)": osmBase,
     "Satellite IGN": satelliteIGN,
     "Cadastre IGN": cadastreIGN
 };
-
-// Ajout du contrôle Leaflet pour changer de fond de carte
 L.control.layers(baseMaps).addTo(map);
 
 // Gestion des tracés
