@@ -3,18 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Éditeur de Tracé - Irrigation</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <link rel="stylesheet" href="style.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <title>Éditeur d'Irrigation</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <style>
+        #map { height: 500px; }
+        .button { margin: 5px; padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; }
+    </style>
 </head>
 <body>
-    <h2>Éditeur de Tracé pour Irrigation</h2>
+    <h3>Tracer les zones d'irrigation</h3>
+    <button class="button" onclick="addPointEau()">Ajouter un Point d'Eau</button>
+    <button class="button" onclick="sendData()">Envoyer les Données</button>
     <div id="map"></div>
-    <button id="saveData">Enregistrer les Zones</button>
-    
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
