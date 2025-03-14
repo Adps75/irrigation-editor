@@ -1,12 +1,12 @@
-# main.py
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-from typing import List
+from typing import List, Tuple, Dict
 import uvicorn
+import networkx as nx
 
-# Pour calculer les surfaces
-from shapely.geometry import Polygon
+# Pour calculer les surfaces et optimiser le tracé
+from shapely.geometry import Polygon, Point as ShapelyPoint
 import shapely.ops
 from pyproj import Transformer
 
@@ -40,41 +40,49 @@ async def get_editor():
 async def generate_plan(data: IrrigationData):
     """
     Endpoint qui reçoit les données d'irrigation (adresse, zones, point d'eau, pression, zoom).
-    Il calcule par exemple la surface de chaque zone pour que l'algorithme puisse travailler sur un plan.
+    Il calcule la surface des zones et optimise le réseau de tuyaux.
     """
-    # Transformer pour convertir de WGS84 (EPSG:4326) vers Web Mercator (EPSG:3857)
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
 
     zone_areas = []
+    zone_centroids = []
     for zone in data.zones:
-        # Convertir la liste de points en tuple (lng, lat) car la transformation attend x, y
         coords = [(pt.lng, pt.lat) for pt in zone.coords]
         if len(coords) < 3:
-            # On ignore les zones qui ne forment pas un polygone
             zone_areas.append(0)
             continue
         poly = Polygon(coords)
-        # Transformer le polygone en coordonnées projetées
         poly_proj = shapely.ops.transform(transformer.transform, poly)
         area = poly_proj.area  # surface en m²
         zone_areas.append(area)
+        zone_centroids.append(poly.centroid)
 
-    # Pour cet exemple, on renvoie aussi une réponse statique (à remplacer par votre algorithme complet)
+    # Création du graphe pour optimiser le tracé des tuyaux
+    G = nx.Graph()
+    G.add_node("point_eau", pos=(data.point_eau.lng, data.point_eau.lat))
+    for i, centroid in enumerate(zone_centroids):
+        G.add_node(f"zone_{i}", pos=(centroid.x, centroid.y))
+        G.add_edge("point_eau", f"zone_{i}", weight=centroid.distance(ShapelyPoint(data.point_eau.lng, data.point_eau.lat)))
+    mst = nx.minimum_spanning_tree(G)
+    
+    tuyaux = [
+        {"start": G.nodes[u]['pos'], "end": G.nodes[v]['pos'], "pipe_type": "32mm"}
+        for u, v in mst.edges
+    ]
+
+    # Génération des équipements
+    electrovanes = [
+        {"location": G.nodes[f"zone_{i}"]['pos'], "type": "24V"} for i in range(len(zone_centroids))
+    ]
+    arroseurs = [
+        {"location": G.nodes[f"zone_{i}"]['pos'], "radius": 5} for i in range(len(zone_centroids))
+    ]
+
     result = {
-        "zone_areas": zone_areas,  # Surface de chaque zone en m²
-        "tuyaux": [
-            [ (data.point_eau.lat, data.point_eau.lng),
-              (data.point_eau.lat + 0.001, data.point_eau.lng + 0.001) ]
-        ],
-        "electrovannes": [
-            {"lat": data.point_eau.lat + 0.001, "lng": data.point_eau.lng + 0.001}
-        ],
-        "arroseurs": [
-            {"lat": data.point_eau.lat + 0.002, "lng": data.point_eau.lng + 0.002, "rayon": 5}
-        ],
-        "color_zones": {
-            "zone1": "#FF0000"
-        },
+        "zone_areas": zone_areas,
+        "tuyaux": tuyaux,
+        "electrovanes": electrovanes,
+        "arroseurs": arroseurs,
         "scale_info": {
             "zoom": data.zoom,
             "remarque": "Le zoom est utilisé pour adapter l'affichage et le calcul des surfaces."
