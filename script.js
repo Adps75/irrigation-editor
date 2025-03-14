@@ -6,6 +6,10 @@ let zones = [];
 let drawing = false;
 let currentPolygon = [];
 
+map.on('zoomend', function() {
+    console.log("Zoom actuel :", map.getZoom());
+});
+
 function addPointEau() {
     map.on('click', function (e) {
         let marker = L.marker([e.latlng.lat, e.latlng.lng], { draggable: true }).addTo(map);
@@ -42,30 +46,7 @@ function startDrawing() {
     });
 }
 
-function clearMap() {
-    map.eachLayer(layer => {
-        if (!!layer.toGeoJSON) {
-            map.removeLayer(layer);
-        }
-    });
-    pointsEau = [];
-    zones = [];
-}
-
-function validateTraces() {
-    if (zones.length === 0) {
-        alert("Aucune zone tracée !");
-        return;
-    }
-    alert("Tracé validé ! Vous pouvez maintenant générer le plan.");
-}
-
 function sendData() {
-    if (pointsEau.length === 0 || zones.length === 0) {
-        alert("Ajoutez au moins un point d’eau et une zone avant d’envoyer les données !");
-        return;
-    }
-
     let data = {
         address: "Adresse Test",
         zones: zones,
