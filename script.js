@@ -1,50 +1,86 @@
-document.addEventListener("DOMContentLoaded", function () {
-    var map = L.map('map').setView([48.8566, 2.3522], 13); // Paris par défaut
+let map = L.map('map').setView([48.8566, 2.3522], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
+let pointsEau = [];
+let zones = [];
+let drawing = false;
+let currentPolygon = [];
 
-    var drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
+function addPointEau() {
+    map.on('click', function (e) {
+        let marker = L.marker([e.latlng.lat, e.latlng.lng], { draggable: true }).addTo(map);
+        pointsEau.push({ lat: e.latlng.lat, lng: e.latlng.lng });
 
-    var drawControl = new L.Control.Draw({
-        edit: {
-            featureGroup: drawnItems
-        },
-        draw: {
-            polygon: true,
-            marker: true, // Ajout d'un point d'eau principal
-            circle: false,
-            rectangle: true,
-            polyline: false
-        }
-    });
-
-    map.addControl(drawControl);
-
-    map.on(L.Draw.Event.CREATED, function (event) {
-        var layer = event.layer;
-        drawnItems.addLayer(layer);
-    });
-
-    document.getElementById('saveData').addEventListener('click', function () {
-        var data = [];
-        drawnItems.eachLayer(function (layer) {
-            if (layer instanceof L.Polygon || layer instanceof L.Rectangle) {
-                data.push({ type: 'zone', coords: layer.getLatLngs() });
-            } else if (layer instanceof L.Marker) {
-                data.push({ type: 'point_eau', coords: layer.getLatLng() });
-            }
+        marker.on('dragend', function (event) {
+            let newPos = event.target.getLatLng();
+            let index = pointsEau.findIndex(p => p.lat === e.latlng.lat && p.lng === e.latlng.lng);
+            pointsEau[index] = { lat: newPos.lat, lng: newPos.lng };
         });
 
-        console.log("Données enregistrées :", JSON.stringify(data));
-
-        // Envoi des données à Bubble via postMessage
-        if (window.parent.postMessage) {
-            window.parent.postMessage({ type: "leaflet_data", content: data }, "*");
-        }
-
-        alert("Les données ont été enregistrées et envoyées à Bubble !");
+        map.off('click');
     });
-});
+}
+
+function startDrawing() {
+    drawing = true;
+    currentPolygon = [];
+    alert("Cliquez sur la carte pour dessiner une zone, double-cliquez pour terminer.");
+    
+    map.on('click', function (e) {
+        if (!drawing) return;
+        currentPolygon.push([e.latlng.lat, e.latlng.lng]);
+        L.circleMarker([e.latlng.lat, e.latlng.lng], { radius: 3, color: 'blue' }).addTo(map);
+    });
+
+    map.on('dblclick', function () {
+        if (currentPolygon.length > 2) {
+            let polygon = L.polygon(currentPolygon, { color: 'green' }).addTo(map);
+            zones.push({ coords: currentPolygon });
+        }
+        drawing = false;
+        map.off('click');
+    });
+}
+
+function clearMap() {
+    map.eachLayer(layer => {
+        if (!!layer.toGeoJSON) {
+            map.removeLayer(layer);
+        }
+    });
+    pointsEau = [];
+    zones = [];
+}
+
+function validateTraces() {
+    if (zones.length === 0) {
+        alert("Aucune zone tracée !");
+        return;
+    }
+    alert("Tracé validé ! Vous pouvez maintenant générer le plan.");
+}
+
+function sendData() {
+    if (pointsEau.length === 0 || zones.length === 0) {
+        alert("Ajoutez au moins un point d’eau et une zone avant d’envoyer les données !");
+        return;
+    }
+
+    let data = {
+        address: "Adresse Test",
+        zones: zones,
+        points_eau: pointsEau,
+        pression: 3.5,
+        zoom: map.getZoom(),
+        fill_time: 10
+    };
+
+    fetch("http://127.0.0.1:5000/generate_plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => console.log("Plan généré :", result))
+    .catch(error => console.error("Erreur :", error));
+}
