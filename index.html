@@ -8,12 +8,17 @@
     <style>
         #map { height: 500px; }
         .button { margin: 5px; padding: 8px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .button.red { background: #dc3545; }
     </style>
 </head>
 <body>
     <h3>Tracer les zones d'irrigation</h3>
-    <button class="button" onclick="addPointEau()">Ajouter un Point d'Eau</button>
-    <button class="button" onclick="sendData()">Envoyer les Données</button>
+    <button class="button" onclick="addPointEau()">➕ Ajouter un Point d'Eau</button>
+    <button class="button" onclick="startDrawing()">✏ Tracer une Zone</button>
+    <button class="button red" onclick="clearMap()">❌ Réinitialiser</button>
+    <button class="button" onclick="validateTraces()">✅ Valider Tracé</button>
+    <button class="button" onclick="sendData()">📤 Générer le Plan</button>
+
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
